@@ -195,9 +195,80 @@ docker run --rm hello-world # → "Hello from Docker!"
 
 ---
 
-## 残タスク（Phase 0 内）
+## 5. PostgreSQL のコンテナ化 (docker-compose.yml)
 
-- [ ] **Docker Engine インストール**（ユーザー側で実施中）
-- [ ] **VSCode の Metals 拡張インストール**（ユーザー側で実施）
-    - VSCode → 拡張機能 → "Metals" で検索 → "Scala (Metals)" をインストール
-- [ ] **PostgreSQL 用の docker-compose.yml 作成**（Docker 導入後に着手）
+### 方針
+ローカル DB は **Docker コンテナで起動**する。アプリのバックエンド (Scala/Play) はホスト側で動かし、`localhost:5432` で接続する構成。
+
+### 認証情報の管理: `.env` ファイル分離
+
+| ファイル | 役割 | git 管理 |
+|---|---|---|
+| `docker-compose.yml` | コンテナ構成（接続情報は変数参照） | 含める |
+| `.env.example` | 環境変数のテンプレート（値はダミー） | 含める |
+| `.env` | 実際の値（ローカル専用） | **除外（.gitignore）** |
+
+**理由**:
+- 本番のパスワードを誤って git にコミットしない練習。
+- 環境ごとに値を変えやすい。
+- Web 開発で標準の習慣。
+
+### 作成ファイル
+
+#### `docker-compose.yml` の要点
+- **イメージ**: `postgres:17-alpine`（Alpine ベースで軽量、PostgreSQL 17 系）
+- **永続化**: 名前付きボリューム `db_data` を `/var/lib/postgresql/data` にマウント
+- **ポート**: ホスト側 5432 → コンテナ側 5432
+- **healthcheck**: `pg_isready` で起動完了を判定
+- **タイムゾーン**: `Asia/Tokyo`
+- **再起動方針**: `unless-stopped`（手動で止めない限り再起動）
+
+#### `.gitignore` のポイント
+- `.env`, `.env.local` を除外
+- Scala 系: `target/`, `.bsp/`, `.bloop/`, `.metals/`
+- Node 系: `node_modules/`, `dist/`, `build/`
+- IDE/OS の各種一時ファイル
+
+### 起動とコマンド
+
+```bash
+docker compose up -d              # バックグラウンドで起動
+docker compose ps                 # 状態確認
+docker compose logs -f db         # ログ追従
+docker compose exec db psql -U my_kitchen -d my_kitchen  # psql 接続
+docker compose down               # 停止（データは残る）
+docker compose down -v            # 停止 + ボリューム削除（データ消滅）
+```
+
+### 動作確認結果
+
+```bash
+$ docker compose up -d
+... Container my_kitchen_db Started
+
+$ docker compose ps
+NAME            IMAGE                STATUS                    PORTS
+my_kitchen_db   postgres:17-alpine   Up 16 seconds (healthy)   0.0.0.0:5432->5432/tcp
+
+$ docker compose exec -T db psql -U my_kitchen -d my_kitchen -c "SELECT version();"
+PostgreSQL 17.9 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+```
+
+✅ コンテナ起動・healthcheck・SQL 実行すべて成功。
+
+---
+
+## Phase 0 完了サマリ
+
+- [x] WSL2 (Ubuntu 24.04) で開発環境を統一
+- [x] JDK 21 (Temurin) + sbt + Scala 3.8.3 + scala-cli 等を Coursier 経由で導入
+- [x] PATH 設定（.profile + .bashrc）
+- [x] Docker Engine + Compose プラグインのインストール
+- [x] VSCode Metals 拡張の導入
+- [x] PostgreSQL 17 コンテナの起動・接続確認
+
+### 次のフェーズ
+**Phase 1: バックエンド「Hello World」**
+- sbt new で Play Framework のひな形を生成
+- ローカル起動して http://localhost:9000 を確認
+- Scala のディレクトリ構造とルーティング・コントローラーの基本を学ぶ

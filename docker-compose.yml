@@ -1,0 +1,39 @@
+# ============================================================
+# 開発用 docker-compose
+#
+# 用途: ローカル開発のための PostgreSQL を起動する。
+# 起動: docker compose up -d
+# 停止: docker compose down          # コンテナのみ削除（DB データは残る）
+# 完全削除: docker compose down -v    # ボリュームごと削除（DB データも消える）
+# 接続確認: docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB
+# ============================================================
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: my_kitchen_db
+    restart: unless-stopped
+    environment:
+      # .env ファイルから読み込む
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # ロケール / タイムゾーン
+      TZ: Asia/Tokyo
+      LANG: ja_JP.UTF-8
+    ports:
+      # ホスト側 5432 → コンテナ側 5432
+      # 競合する場合は左側を 5433 などに変更
+      - "5432:5432"
+    volumes:
+      # データ永続化（コンテナを消してもデータは残る）
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
+    name: my_kitchen_db_data

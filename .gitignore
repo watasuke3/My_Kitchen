@@ -1,0 +1,37 @@
+# ===== 環境変数 =====
+.env
+.env.local
+.env.*.local
+
+# ===== Scala / sbt / Java =====
+target/
+project/target/
+project/project/
+.bsp/
+.bloop/
+.metals/
+.scala-build/
+
+# ===== Node.js / TypeScript =====
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# ===== ログ =====
+*.log
+npm-debug.log*
+
+# ===== IDE / OS =====
+.idea/
+*.iml
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# ===== その他 =====
+*.swp
+*~
