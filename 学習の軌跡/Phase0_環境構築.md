@@ -105,11 +105,99 @@ $ sbt --script-version
 
 ---
 
+## 4. Docker Engine の WSL 直接インストール
+
+### 方針判断
+**Docker Desktop は使わず、Docker Engine を WSL 内に直接インストールする。**
+
+**理由**:
+- Docker Desktop は個人利用なら無料だが、将来的にライセンス制約（従業員250人以上 or 売上 $10M 以上の組織で有料）にぶつかる可能性。
+- Docker Engine（CLI）は Apache 2.0 ライセンスで完全無料、用途制限なし。
+- WSL 内に直接入れるとメモリ使用量も軽くなる（Docker Desktop の Windows 側 GUI が不要）。
+- 今回 Ubuntu 24.04 on WSL2 で **systemd が有効**（`/etc/wsl.conf` で `systemd=true`）なので、`systemctl enable --now docker` でサービス常駐できる。
+
+### 前提確認（実施済み）
+
+```bash
+$ cat /etc/wsl.conf
+[boot]
+systemd=true
+
+$ ps -p 1 -o comm=
+systemd
+```
+
+→ systemd が PID 1 で動作。Linux と同じ感覚で `systemctl` が使える。
+
+### 実行スクリプト
+
+手順をまとめた **`scripts/install-docker.sh`** を用意済み。
+
+```bash
+bash scripts/install-docker.sh
+```
+
+スクリプト内の処理は以下と同等。学習目的で中身を理解したい場合は、スクリプトを開きながら以下と照らし合わせること。
+
+### 実行コマンド（スクリプトの中身）
+
+```bash
+# 1. Docker 公式 apt リポジトリの登録
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+# 2. Docker Engine + Compose プラグインのインストール
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 3. systemd で常駐させる
+sudo systemctl enable --now docker
+
+# 4. 現ユーザーを docker グループに追加（sudo なしで docker コマンドを使うため）
+sudo usermod -aG docker $USER
+```
+
+### コマンドの意味
+
+| コマンド | 役割 |
+|---|---|
+| `apt-get update` | パッケージ情報を最新化 |
+| `install ca-certificates curl` | HTTPS でリポジトリにアクセスする前提 |
+| `install -m 0755 -d /etc/apt/keyrings` | Docker GPG 鍵を置くディレクトリを作成 |
+| `curl ... -o /etc/apt/keyrings/docker.asc` | Docker 公式の GPG 公開鍵を取得 |
+| `echo "deb ... " | sudo tee /etc/apt/sources.list.d/docker.list` | Docker 公式 apt リポジトリを登録 |
+| `install docker-ce ...` | Docker Engine、CLI、containerd、Compose プラグインをインストール |
+| `systemctl enable --now docker` | サービス自動起動 + 即時起動 |
+| `usermod -aG docker $USER` | docker グループにユーザー追加 |
+
+### 反映のため WSL 再起動
+
+グループ変更は再ログインで反映される。Windows 側 PowerShell で:
+
+```powershell
+wsl --shutdown
+```
+
+その後 WSL ターミナルを開き直す。
+
+### 動作確認
+
+```bash
+docker --version            # → Docker version 28.x.x
+docker compose version      # → Docker Compose version v2.x.x
+docker run --rm hello-world # → "Hello from Docker!"
+```
+
+---
+
 ## 残タスク（Phase 0 内）
 
-- [ ] **Docker Desktop for Windows のインストール**（ユーザー側で実施）
-    - https://www.docker.com/products/docker-desktop/ から DL
-    - 設定で「Enable integration with WSL」を ON
+- [ ] **Docker Engine インストール**（ユーザー側で実施中）
 - [ ] **VSCode の Metals 拡張インストール**（ユーザー側で実施）
     - VSCode → 拡張機能 → "Metals" で検索 → "Scala (Metals)" をインストール
 - [ ] **PostgreSQL 用の docker-compose.yml 作成**（Docker 導入後に着手）
