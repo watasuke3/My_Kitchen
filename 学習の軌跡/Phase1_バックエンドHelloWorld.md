@@ -252,32 +252,153 @@ Content-Length: 437
 
 ---
 
-## 5. 議論ポイント: Scala 2.13 vs Scala 3
+## 5. 判断: Scala 2.13 のままで進める
 
-### 現状
-`play-scala-seed.g8` のデフォルトは **Scala 2.13.18**。一方、`docs/DESIGN.md` では Scala 3 採用を予定していた。
+### 決定
+**Scala 2.13.18** を採用。`docs/DESIGN.md` 当初の Scala 3 方針からは変更。
 
-### Scala 2.13 のままにする場合
-- 公式テンプレートでテスト済みの組み合わせ
-- Play のチュートリアル・サンプルの大半が 2.13
-- 学習のしやすさ：◎
+### 理由
+1. **公式テンプレートの組み合わせが安定** — Play 3.0.10 + Scala 2.13 はテスト済みの構成。詰まりにくい。
+2. **情報量** — Play のチュートリアル、Stack Overflow、ブログ記事の大半が 2.13。
+3. **本質学習への影響は小** — Scala 2.13 と 3 の差は文法寄り（インデント構文、enum 等）で、Web アプリ開発を学ぶ上では本質的影響が薄い。
+4. **時間配分** — 学習の主目的は「Scala で Web アプリを作る」ことであり、言語仕様の差で詰まる時間を減らして実装に注力すべき。
 
-### Scala 3 に切り替える場合
-- DESIGN.md の方針に沿う
-- より新しい構文（インデント構文、enum、Given/Using など）
-- Play 3.0.x は Scala 3 対応済み（3.3.x LTS が推奨）
-- 一部のライブラリの組み合わせで詰まる可能性
-
-→ **次のターンで決定する**。
+### 影響
+- `build.sbt` は変更なし（生成時のままで OK）
+- `docs/DESIGN.md` を更新（Scala 3 → Scala 2.13）
+- `README.md` を更新（同上）
+- Scala 3 の学習は後日別途行う余地を残す
 
 ---
 
 ## 残タスク（Phase 1 内）
 
-- [ ] Scala 2.13 / 3 の方針を確定
-- [ ] 必要なら build.sbt を編集して Scala 3 化
+- [x] Scala 2.13 / 3 の方針を確定 → 2.13 に確定
 - [ ] 自分の手でブラウザから localhost:9000 にアクセス確認
 - [ ] Phase 2（フロントエンド）に進む前に、簡単な API エンドポイントを1つ追加して動作確認すると理解が深まる（オプション）
+
+---
+
+## 6. Hello World が Web 画面に出力される原理
+
+### 全体の流れ（5ステップ）
+
+```
+ブラウザ → [1] HTTP リクエスト → Pekko HTTP サーバー
+           → [2] routes ファイル でルート照合
+           → [3] HomeController.index() が呼ばれる
+           → [4] Twirl テンプレートが HTML に変換される
+           → [5] HTTP レスポンスとしてブラウザに返る
+```
+
+---
+
+### [1] HTTP リクエスト受信
+
+`sbt run` を実行すると **Pekko HTTP**（旧 Akka HTTP の後継）がサーバーとして起動し、ポート 9000 で待ち受ける。
+
+```
+INFO p.c.s.PekkoHttpServer - Listening for HTTP on /[0:0:0:0:0:0:0:0]:9000
+```
+
+ブラウザで `http://localhost:9000/` を開くと、以下の HTTP リクエストが送信される。
+
+```http
+GET / HTTP/1.1
+Host: localhost:9000
+```
+
+---
+
+### [2] ルーティング（`conf/routes`）
+
+Play はリクエストを受け取ると、`conf/routes` ファイルを上から順に照合する。
+
+```
+GET     /           controllers.HomeController.index()
+```
+
+- メソッド `GET`、パス `/` に一致
+- → `HomeController` の `index()` を呼ぶよう決定
+
+`routes` ファイルはビルド時に **Scala コードとしてコンパイル** される。文字列マッチではなく型安全なルーターが生成される点が Play の特徴。
+
+---
+
+### [3] コントローラの実行（`app/controllers/HomeController.scala`）
+
+```scala
+def index() = Action { implicit request: Request[AnyContent] =>
+    Ok(views.html.index())
+}
+```
+
+| コード | 意味 |
+|---|---|
+| `Action { ... }` | HTTP リクエストを受け取り、レスポンスを返すブロック |
+| `Ok(...)` | HTTP ステータス 200 を付けてレスポンスを返すヘルパー |
+| `views.html.index()` | Twirl テンプレートを呼び出して HTML を生成 |
+
+---
+
+### [4] Twirl テンプレートによる HTML 生成
+
+`app/views/index.scala.html` は **Twirl**（Play 内蔵のテンプレートエンジン）で処理される。
+
+**重要な仕組み**: `.scala.html` ファイルはビルド時に **Scala の関数として自動コンパイル** される。
+
+```
+index.scala.html  →（コンパイル）→  views.html.index  という Scala オブジェクト
+```
+
+そのため `views.html.index()` という関数呼び出しで HTML が生成できる。  
+`main.scala.html` はレイアウト共通部分（`<head>` タグなど）を担い、`index.scala.html` から呼ばれる。
+
+---
+
+### [5] HTTP レスポンスとしてブラウザへ返る
+
+```http
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html lang="en">
+    <head><title>Welcome to Play</title></head>
+    ...
+    <h1>Welcome to Play!</h1>
+```
+
+ブラウザはこの HTML を受け取り、画面に表示する。
+
+---
+
+### まとめ図
+
+```
+[ブラウザ]
+    │ GET /
+    ▼
+[Pekko HTTP]  ← sbt run で起動した HTTP サーバー
+    │
+    ▼
+[conf/routes]  ← URL → コントローラのマッピング表
+    │ GET / → HomeController.index()
+    ▼
+[HomeController.scala]  ← リクエストを処理する Scala コード
+    │ Ok(views.html.index())
+    ▼
+[index.scala.html]  ← Twirl テンプレート（Scala コードとしてコンパイル済み）
+    │ HTML 文字列を生成
+    ▼
+[ブラウザ]  ← 200 OK + HTML を受信 → 画面に表示
+```
+
+---
+
+### ホットリロードの仕組み
+
+`sbt run` の `auto-reloading` は Play の開発専用機能。`.scala` や `.html` ファイルを変更して保存すると、**次のリクエストのタイミングで** sbt が差分コンパイルして自動反映する。サーバーを手動再起動する必要がない理由はここにある。
 
 ---
 

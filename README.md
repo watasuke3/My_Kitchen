@@ -6,7 +6,7 @@
 ## 2. 技術構成
 - **対象プラットフォーム**: Webアプリ（PC／スマートフォンのブラウザを想定）。
 - **フロントエンド**: TypeScript + React（Vite ベースの SPA）。
-- **バックエンド**: Scala 3（Web フレームワークは Play Framework を第一候補）。
+- **バックエンド**: Scala 2.13 + Play Framework 3.0。
 - **DB**: PostgreSQL。
 - **DBマイグレーション**: Flyway。
 - **ビルドツール**: sbt。
