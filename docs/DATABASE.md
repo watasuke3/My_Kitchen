@@ -29,24 +29,19 @@
 ### Phase 5+ 拡張計画
 
 ```
-┌──────────────────┐         ┌──────────────────┐
-│    Users         │         │   Recipes        │
-├──────────────────┤         ├──────────────────┤
-│ id (PK)          │◄────────│ user_id (FK)     │
-│ email            │         │ id (PK)          │
-│ password_hash    │         │ name             │
-│ created_at       │         │ recipe_type      │  (Preset / User-Original / Derived)
-│ updated_at       │         │ created_at       │
-└──────────────────┘         └──────────────────┘
-                                    ↓
-                            ┌──────────────────┐
-                            │  Ingredients     │
-                            ├──────────────────┤
-                            │ recipe_id (FK)   │
-                            │ ingredient_name  │
-                            │ quantity         │
-                            │ unit             │
-                            └──────────────────┘
+┌──────────────────┐         ┌──────────────────────┐
+│    Users         │         │   Recipes            │
+├──────────────────┤         ├──────────────────────┤
+│ id (PK)          │◄────────│ user_id (FK)         │
+│ email            │         │ id (PK)              │
+│ password_hash    │         │ name                 │
+│ created_at       │         │ source_url           │  (クックパッド等の URL)
+│ updated_at       │         │ category             │  (主食/主菜/副菜/汁物/その他)
+└──────────────────┘         │ servings             │  (基準人数)
+                             │ memo                 │  (個人メモ)
+                             │ created_at           │
+                             │ updated_at           │
+                             └──────────────────────┘
 ```
 
 ---
@@ -92,18 +87,19 @@ CREATE INDEX idx_users_email ON users(email);
 ### Recipes (Phase 5+ - レシピ管理)
 
 #### 目的
-ユーザー所有またはシステム提供のレシピを管理。
+ユーザーが外部料理サイト（クックパッド等）のURLを登録して献立に活用する。
 
 #### スキーマ
 
 | カラム名 | 型 | 制約 | 説明 |
 |---------|-----|------|------|
 | `id` | `BIGSERIAL` | PRIMARY KEY | レシピの一意識別子 |
-| `user_id` | `BIGINT` | FOREIGN KEY (users.id) | レシピの所有者 (NULL = Preset) |
-| `name` | `VARCHAR(255)` | NOT NULL | レシピ名 |
-| `description` | `TEXT` | NULL | 説明・作り方 |
-| `recipe_type` | `VARCHAR(50)` | NOT NULL | 'PRESET', 'USER_ORIGINAL', 'DERIVED' |
-| `parent_recipe_id` | `BIGINT` | FOREIGN KEY (recipes.id) | Derived の場合、元のレシピ |
+| `user_id` | `BIGINT` | FOREIGN KEY (users.id) NOT NULL | レシピの所有者 |
+| `name` | `VARCHAR(255)` | NOT NULL | レシピ名（ユーザーが入力） |
+| `source_url` | `VARCHAR(2048)` | NOT NULL | 外部サイトの URL (クックパッド等) |
+| `category` | `VARCHAR(50)` | NOT NULL | '主食', '主菜', '副菜', '汁物', 'その他' |
+| `servings` | `INTEGER` | NOT NULL DEFAULT 2 | 基準人数（例：2人前） |
+| `memo` | `TEXT` | NULL | 個人メモ |
 | `created_at` | `TIMESTAMP` | NOT NULL DEFAULT CURRENT_TIMESTAMP | 作成日時 |
 | `updated_at` | `TIMESTAMP` | NOT NULL DEFAULT CURRENT_TIMESTAMP | 更新日時 |
 
@@ -112,60 +108,25 @@ CREATE INDEX idx_users_email ON users(email);
 ```sql
 CREATE TABLE recipes (
   id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
-  description TEXT,
-  recipe_type VARCHAR(50) NOT NULL CHECK (recipe_type IN ('PRESET', 'USER_ORIGINAL', 'DERIVED')),
-  parent_recipe_id BIGINT REFERENCES recipes(id) ON DELETE SET NULL,
+  source_url VARCHAR(2048) NOT NULL,
+  category VARCHAR(50) NOT NULL CHECK (category IN ('主食', '主菜', '副菜', '汁物', 'その他')),
+  servings INTEGER NOT NULL DEFAULT 2,
+  memo TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_recipes_user_id ON recipes(user_id);
-CREATE INDEX idx_recipes_recipe_type ON recipes(recipe_type);
+CREATE INDEX idx_recipes_category ON recipes(category);
 ```
 
 #### 備考
-- `user_id = NULL`: システム提供の Preset レシピ
-- `recipe_type = 'DERIVED'`: `parent_recipe_id` を参照
-- Preset レシピはハードコードまたは JSON ファイルから初期データとして投入
-
----
-
-### Ingredients (Phase 5+ - 具材・食材管理)
-
-#### 目的
-各レシピに含まれる食材と数量を記録。
-
-#### スキーマ
-
-| カラム名 | 型 | 制約 | 説明 |
-|---------|-----|------|------|
-| `id` | `BIGSERIAL` | PRIMARY KEY | 具材エントリーの一意識別子 |
-| `recipe_id` | `BIGINT` | FOREIGN KEY (recipes.id) | 属するレシピ |
-| `ingredient_name` | `VARCHAR(255)` | NOT NULL | 食材名 (例: "人参", "鶏肉") |
-| `quantity` | `NUMERIC(10,2)` | NOT NULL | 数量 |
-| `unit` | `VARCHAR(50)` | NOT NULL | 単位 (例: "g", "個", "ml") |
-| `nutrition_per_unit` | `JSONB` | NULL | 単位あたりの栄養価 {kcal, protein, fat, carbs} |
-
-#### SQL 定義
-
-```sql
-CREATE TABLE ingredients (
-  id BIGSERIAL PRIMARY KEY,
-  recipe_id BIGINT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-  ingredient_name VARCHAR(255) NOT NULL,
-  quantity NUMERIC(10,2) NOT NULL,
-  unit VARCHAR(50) NOT NULL,
-  nutrition_per_unit JSONB
-);
-
-CREATE INDEX idx_ingredients_recipe_id ON ingredients(recipe_id);
-```
-
-#### 備考
-- `nutrition_per_unit`: 初期段階ではハードコード、後で外部データソースと連携
-- 栄養計算: quantity × nutrition_per_unit で算出 (Phase 7)
+- `user_id`: 必須（プリセットなし、全レシピはユーザー所有）
+- `source_url`: クックパッド・デリッシュキッチン・白ごはん.com 等の URL を想定
+- 食材・栄養情報はアプリでは管理しない（外部サイトで確認）
+- 将来拡張: 手動で `calories_per_serving` などを追加して栄養計算に対応できる設計にしておく
 
 ---
 
@@ -198,11 +159,7 @@ backend/conf/db/migration/
 
 - **Users**: 第 3 正規形
 - **Recipes**: 第 3 正規形 (user_id FK は依存関係を示す)
-- **Ingredients**: 第 3 正規形
-
-### 非正規化検討
-
-- **ShoppingList** (Phase 6): 複数レシピの具材を集計するため、計算値をキャッシュ検討
+- **ShoppingListItems**: 第 3 正規形
 
 ---
 
@@ -212,8 +169,9 @@ backend/conf/db/migration/
 |---------|--------|------|
 | `users` | `email` | ログイン時の高速検索 |
 | `recipes` | `user_id` | ユーザーのレシピ一覧取得 |
-| `recipes` | `recipe_type` | PRESET / USER_ORIGINAL 分類検索 |
-| `ingredients` | `recipe_id` | レシピの具材一覧取得 |
+| `recipes` | `category` | カテゴリ別レシピ検索 |
+| `shopping_list_items` | `user_id` | ユーザーの買い物リスト取得 |
+| `shopping_list_items` | `is_checked` | 未チェックのみ表示する絞り込み |
 
 ---
 
@@ -224,13 +182,59 @@ backend/conf/db/migration/
 
 ---
 
+### ShoppingListItems (Phase 6 - 買い物リスト)
+
+#### 目的
+ユーザーの買い物リストを管理する。プリセット食材とユーザー追加食材を同一テーブルで管理。
+
+#### スキーマ
+
+| カラム名 | 型 | 制約 | 説明 |
+|---------|-----|------|------|
+| `id` | `BIGSERIAL` | PRIMARY KEY | アイテムの一意識別子 |
+| `user_id` | `BIGINT` | FOREIGN KEY (users.id) NOT NULL | 所有ユーザー |
+| `name` | `VARCHAR(255)` | NOT NULL | 食材名 (例: "醤油", "鶏もも肉") |
+| `quantity` | `VARCHAR(100)` | NULL | 分量 (自由記述。例: "200g", "2個", "適量") |
+| `is_checked` | `BOOLEAN` | NOT NULL DEFAULT FALSE | 購入済みフラグ |
+| `is_preset` | `BOOLEAN` | NOT NULL DEFAULT FALSE | TRUE = アプリ提供のプリセット食材 |
+| `sort_order` | `INTEGER` | NOT NULL DEFAULT 0 | 表示順 (ユーザーが並び替え可能) |
+| `created_at` | `TIMESTAMP` | NOT NULL DEFAULT CURRENT_TIMESTAMP | 作成日時 |
+| `updated_at` | `TIMESTAMP` | NOT NULL DEFAULT CURRENT_TIMESTAMP | 更新日時 |
+
+#### SQL 定義
+
+```sql
+CREATE TABLE shopping_list_items (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  quantity VARCHAR(100),
+  is_checked BOOLEAN NOT NULL DEFAULT FALSE,
+  is_preset BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_shopping_list_items_user_id ON shopping_list_items(user_id);
+CREATE INDEX idx_shopping_list_items_is_checked ON shopping_list_items(user_id, is_checked);
+```
+
+#### 備考
+- `is_preset = TRUE`: 醤油・砂糖・塩・油など基本調味料をシステムが初期データとして投入
+- プリセットはユーザーアカウント作成時に自動コピーされる（各ユーザーが独立して編集可能）
+- 「チェック済みを一括クリア」= `is_checked = FALSE` に一括更新（行削除はしない）
+- ユーザーはプリセット行も削除・編集可能
+
+---
+
 ## 次フェーズへの拡張予定
 
 | フェーズ | テーブル追加 |
 |---------|-------------|
-| Phase 5 | Recipes, Ingredients |
-| Phase 6 | Meals, MealPlans, ShoppingLists |
-| Phase 7 | (Ingredients に nutrition 詳細化) |
+| Phase 5 | Recipes (URL 登録モデル) |
+| Phase 6 | Meals, MealPlans, ShoppingListItems |
+| Phase 7 | (Recipes に calories_per_serving 等を追加して栄養計算に対応、未確定) |
 | Phase 8 | Allergies, UserAllergies |
 
 ---
@@ -240,3 +244,5 @@ backend/conf/db/migration/
 | 日時 | 内容 | 実施者 |
 |------|------|--------|
 | 2026-05-15 | 初版作成 (Phase 4 最小構成) | Claude |
+| 2026-05-18 | Recipes を URL 登録モデルに変更、Ingredients 廃止 | Claude |
+| 2026-05-18 | ShoppingListItems テーブル追加 (プリセット + ユーザー追加モデル) | Claude |
