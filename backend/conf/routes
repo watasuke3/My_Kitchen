@@ -9,5 +9,18 @@ GET     /                           controllers.HomeController.index()
 # API
 GET     /api/health                 controllers.HomeController.health()
 
+# Auth
+POST    /api/v1/auth/register       controllers.AuthController.register()
+POST    /api/v1/auth/login          controllers.AuthController.login()
+POST    /api/v1/auth/logout         controllers.AuthController.logout()
+GET     /api/v1/auth/me             controllers.AuthController.me()
+
+# Recipes
+GET     /api/v1/recipes             controllers.RecipeController.list()
+POST    /api/v1/recipes             controllers.RecipeController.create()
+GET     /api/v1/recipes/:id         controllers.RecipeController.show(id: Long)
+PUT     /api/v1/recipes/:id         controllers.RecipeController.update(id: Long)
+DELETE  /api/v1/recipes/:id         controllers.RecipeController.delete(id: Long)
+
 # Map static resources from the /public folder to the /assets URL path
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
