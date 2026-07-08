@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchRecipes, deleteRecipe, Recipe } from '../api/recipes'
+import { fetchRecipes, deleteRecipe, type Recipe } from '../api/recipes'
 
 const CATEGORY_LABELS: Record<string, string> = {
   朝食: '🌅 朝食',

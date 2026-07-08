@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createRecipe, updateRecipe, fetchRecipe, RecipeInput } from '../api/recipes'
+import { createRecipe, updateRecipe, fetchRecipe, type RecipeInput } from '../api/recipes'
 
 const CATEGORIES = ['朝食', '昼食', '夕食', 'おやつ', 'その他']
 

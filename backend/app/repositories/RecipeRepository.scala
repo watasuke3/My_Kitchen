@@ -30,8 +30,8 @@ class RecipeRepository @Inject()(dbConfigProvider: DatabaseConfigProvider)(impli
     def category        = column[String]("category")
     def servings        = column[Int]("servings")
     def cookTimeMinutes = column[Int]("cook_time_minutes")
-    def createdAt       = column[OffsetDateTime]("created_at")
-    def updatedAt       = column[OffsetDateTime]("updated_at")
+    def createdAt       = column[OffsetDateTime]("created_at")(offsetDateTimeMapper)
+    def updatedAt       = column[OffsetDateTime]("updated_at")(offsetDateTimeMapper)
     def * = (id, userId, title, description, category, servings, cookTimeMinutes, createdAt, updatedAt)
   }
 

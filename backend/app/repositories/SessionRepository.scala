@@ -22,8 +22,8 @@ class SessionRepository @Inject()(dbConfigProvider: DatabaseConfigProvider)(impl
   private class SessionsTable(tag: Tag) extends Table[(String, Long, OffsetDateTime, OffsetDateTime)](tag, "sessions") {
     def id        = column[String]("id", O.PrimaryKey)
     def userId    = column[Long]("user_id")
-    def expiresAt = column[OffsetDateTime]("expires_at")
-    def createdAt = column[OffsetDateTime]("created_at")
+    def expiresAt = column[OffsetDateTime]("expires_at")(offsetDateTimeMapper)
+    def createdAt = column[OffsetDateTime]("created_at")(offsetDateTimeMapper)
     def *         = (id, userId, expiresAt, createdAt)
   }
 

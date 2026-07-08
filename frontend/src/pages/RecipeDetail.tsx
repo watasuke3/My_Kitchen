@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchRecipe, deleteRecipe, Recipe } from '../api/recipes'
+import { fetchRecipe, deleteRecipe, type Recipe } from '../api/recipes'
 
 export default function RecipeDetail() {
   const { id }    = useParams<{ id: string }>()

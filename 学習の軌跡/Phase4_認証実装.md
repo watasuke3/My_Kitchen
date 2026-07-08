@@ -332,3 +332,33 @@ cd ~/My_Kitchen/frontend && npm run dev
 # http://localhost:5173/login   → ログイン
 # http://localhost:5173/        → ホーム (未ログインでは /login にリダイレクト)
 ```
+
+---
+
+## 動作確認で発覚したバグと修正方針 (2026-07-07)
+
+### バグ1: OffsetDateTime が DB に書き込めない (users / sessions / recipes 共通)
+
+**症状:** 登録・ログイン時に `PSQLException: column "created_at" is of type timestamp with time zone but expression is of type character varying` が発生。
+
+**原因:** Slick 自体が `java.time.OffsetDateTime` 用の組み込み型変換 (`OffsetDateTimeJdbcType`) を持っており、内部的に `VARCHAR` で読み書きする実装になっている。
+各 Repository で独自定義していた `implicit val offsetDateTimeMapper`（`TIMESTAMPTZ` と正しく対応する変換）と型が同じ (`BaseColumnType[OffsetDateTime]`) だったため、暗黙解決で Slick 組み込みの方が採用され、DB の `TIMESTAMPTZ` 型カラムに `VARCHAR` として書き込もうとして失敗していた。読み込み時も Postgres の日時文字列フォーマット不一致でパースエラーになる。
+
+**学び:** Scala の implicit 解決は「ローカルスコープの方が import より優先される」のが原則だが、ライブラリ側が同じ型のインスタンスを持つ場合は意図せず衝突することがある。`implicit val` を定義しただけで安心せず、実際にどちらが使われているかログで確認する必要がある。
+
+**修正:** `column[OffsetDateTime](...)` の呼び出し時に自作の `offsetDateTimeMapper` を `column[OffsetDateTime]("created_at")(offsetDateTimeMapper)` のように明示的に渡し、暗黙解決の曖昧さを排除した。対象: `UserRepository.scala`, `SessionRepository.scala`, `RecipeRepository.scala`。
+
+### バグ2: ログイン後の POST/PUT/DELETE が全て CSRF エラー (403) になる
+
+**症状:** 登録・ログイン（Cookie なしの初回リクエスト）は成功するが、Cookie (`SESSION_ID`) を持った状態でのレシピ作成・ログアウトなど、状態変更系リクエストが全て `403 Forbidden` (Play のデフォルト `Unauthorized` ページ) になる。
+
+**原因:** Play Framework の `CSRFFilter`（`play.filters.enabled` により標準で有効）は、「Cookie を1つでも持っている = セッションがあるかもしれない」とみなし、POST/PUT/DELETE に有効な CSRF トークンを要求する。しかしこのアプリは Play の標準セッション機構を使わず、独自の `SESSION_ID` Cookie でセッション管理をしており、CSRF トークンの発行・検証を実装していない。そのため、ログイン後の全ての書き込み系リクエストが CSRF チェックで弾かれていた。
+
+**検討した選択肢:**
+
+| 方式 | 内容 | 判断 |
+|------|------|------|
+| CSRFFilter を無効化し `SameSite=Strict` で代替 | 独自 Cookie は既に `SameSite=Strict` 設定済み。クロスサイトリクエストではそもそも Cookie が送信されないため、CSRF 対策として機能する | ✅ 採用（ユーザーと相談の上決定） |
+| CSRFFilter を有効のまま、API にもトークン方式を導入 | フロントがトークン取得 → ヘッダー送信を実装。二重防御になるが SPA 構成では実装コストが高い | 不採用 |
+
+**修正:** `application.conf` の `play.filters.enabled` から `play.filters.csrf.CSRFFilter` を除外し、CORS / SecurityHeaders / AllowedHosts フィルタのみ有効化する。CSRF 対策は Cookie の `SameSite=Strict` 属性に一本化する。

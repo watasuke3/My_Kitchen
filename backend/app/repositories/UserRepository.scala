@@ -13,21 +13,21 @@ class UserRepository @Inject()(dbConfigProvider: DatabaseConfigProvider)(implici
 
   private val db = dbConfigProvider.get[slick.jdbc.JdbcProfile].db
 
-  private class UsersTable(tag: Tag) extends Table[(Long, String, String, OffsetDateTime)](tag, "users") {
-    def id        = column[Long]("id", O.PrimaryKey, O.AutoInc)
-    def email     = column[String]("email")
-    def password  = column[String]("password")
-    def createdAt = column[OffsetDateTime]("created_at")
-    def *         = (id, email, password, createdAt)
-  }
-
-  private val users = TableQuery[UsersTable]
-
   implicit val offsetDateTimeMapper: BaseColumnType[OffsetDateTime] =
     MappedColumnType.base[OffsetDateTime, java.sql.Timestamp](
       odt => java.sql.Timestamp.from(odt.toInstant),
       ts  => ts.toInstant.atOffset(java.time.ZoneOffset.UTC)
     )
+
+  private class UsersTable(tag: Tag) extends Table[(Long, String, String, OffsetDateTime)](tag, "users") {
+    def id        = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def email     = column[String]("email")
+    def password  = column[String]("password")
+    def createdAt = column[OffsetDateTime]("created_at")(offsetDateTimeMapper)
+    def *         = (id, email, password, createdAt)
+  }
+
+  private val users = TableQuery[UsersTable]
 
   def findByEmail(email: String): Future[Option[User]] =
     db.run(users.filter(_.email === email).result.headOption)
