@@ -10,7 +10,6 @@ import scala.util.{Failure, Success}
 sealed trait AuthError
 case object EmailAlreadyExists  extends AuthError
 case object InvalidCredentials  extends AuthError
-case object AccountLocked       extends AuthError
 case class  UnexpectedError(msg: String) extends AuthError
 
 @Singleton
@@ -18,8 +17,6 @@ class AuthService @Inject()(
   userRepo: UserRepository,
   sessionRepo: SessionRepository
 )(implicit ec: ExecutionContext) {
-
-  private val MaxFailedAttempts = 5
 
   def register(email: String, password: String): Future[Either[AuthError, String]] = {
     if (password.length < 8 || !password.exists(_.isLetter) || !password.exists(_.isDigit))

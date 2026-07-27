@@ -1,6 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import PasswordField from '../components/PasswordField'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -42,37 +43,44 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h1>ログイン</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>メールアドレス</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
-          />
+    <div className="auth-shell">
+      <div className="auth-side auth-side--login">
+        <span className="auth-icon">🍳</span>
+        <h2>おかえりなさい</h2>
+        <p>今日は何を作りましょうか。ログインして、あなたの献立とレシピを続けましょう。</p>
+      </div>
+
+      <div className="auth-form-panel">
+        <div>
+          <h1>ログイン</h1>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>パスワード</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
-          />
-        </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit" disabled={loading} style={{ padding: '8px 24px' }}>
-          {loading ? '処理中...' : 'ログイン'}
-        </button>
-      </form>
-      <p style={{ marginTop: 16 }}>
-        アカウントをお持ちでない方は <Link to="/register">新規登録</Link>
-      </p>
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="login-email">メールアドレス</label>
+            <input
+              id="login-email"
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <PasswordField id="login-password" label="パスワード" value={password} onChange={setPassword} />
+
+          {error && <p className="form-error">{error}</p>}
+
+          <button type="submit" className="btn btn--primary btn--block" disabled={loading}>
+            {loading ? '処理中...' : 'ログインする'}
+          </button>
+        </form>
+
+        <p className="auth-footnote">
+          アカウントをお持ちでない方は <Link to="/register">新規登録はこちら</Link>
+        </p>
+      </div>
     </div>
   )
 }

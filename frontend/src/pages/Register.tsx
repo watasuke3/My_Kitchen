@@ -1,6 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import PasswordField from '../components/PasswordField'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -42,37 +43,50 @@ export default function Register() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h1>新規登録</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>メールアドレス</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
-          />
+    <div className="auth-shell">
+      <div className="auth-side auth-side--register">
+        <span className="auth-icon">🌱</span>
+        <h2>はじめまして</h2>
+        <p>アカウントを作って、自分だけの献立とレシピ帳を育てていきましょう。</p>
+      </div>
+
+      <div className="auth-form-panel">
+        <div>
+          <h1>新規登録</h1>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>パスワード（8文字以上・英数字混在）</label>
-          <input
-            type="password"
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="register-email">メールアドレス</label>
+            <input
+              id="register-email"
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <PasswordField
+            id="register-password"
+            label="パスワード"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
+            onChange={setPassword}
+            hint="8文字以上・英数字を含めてください"
           />
-        </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit" disabled={loading} style={{ padding: '8px 24px' }}>
-          {loading ? '処理中...' : '登録'}
-        </button>
-      </form>
-      <p style={{ marginTop: 16 }}>
-        すでにアカウントをお持ちの方は <Link to="/login">ログイン</Link>
-      </p>
+
+          {error && <p className="form-error">{error}</p>}
+
+          <button type="submit" className="btn btn--secondary btn--block" disabled={loading}>
+            {loading ? '処理中...' : 'アカウントを作成する'}
+          </button>
+        </form>
+
+        <p className="auth-footnote">
+          すでにアカウントをお持ちの方は <Link to="/login">ログインはこちら</Link>
+        </p>
+      </div>
     </div>
   )
 }

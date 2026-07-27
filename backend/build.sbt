@@ -18,6 +18,9 @@ libraryDependencies += "org.postgresql"     %  "postgresql"            % "42.7.3
 // Password hashing
 libraryDependencies += "com.github.t3hnar" %% "scala-bcrypt" % "4.3.0"
 
+// Rate limiting (login brute-force protection)
+libraryDependencies += "com.digitaltangible" %% "play-guard" % "3.0.0"
+
 // JSON
 libraryDependencies += "com.typesafe.play" %% "play-json" % "2.10.6"
 

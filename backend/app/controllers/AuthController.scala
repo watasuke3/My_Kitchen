@@ -1,8 +1,10 @@
 package controllers
 
+import com.digitaltangible.playguard.IpRateLimitFilter
+import com.digitaltangible.ratelimit.RateLimiter
 import play.api.libs.json._
 import play.api.mvc._
-import services.{AccountLocked, AuthService, EmailAlreadyExists, InvalidCredentials, UnexpectedError}
+import services.{AuthService, EmailAlreadyExists, InvalidCredentials, UnexpectedError}
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
@@ -14,6 +16,16 @@ class AuthController @Inject()(
 )(implicit ec: ExecutionContext) extends AbstractController(cc) {
 
   private val SessionCookieName = "SESSION_ID"
+
+  // ログインAPIのブルートフォース対策: 同一IPにつきトークン5個分は即時許可し、以降10秒に1個のペースで回復する
+  private val loginRateLimiter = new RateLimiter(5, 1f / 10, "login-by-ip")
+
+  private val loginRateLimitFilter = new IpRateLimitFilter[Request](loginRateLimiter) {
+    override def rejectResponse[A](implicit request: Request[A]): Future[Result] =
+      Future.successful(
+        TooManyRequests(Json.obj("error" -> "ログイン試行回数が多すぎます。しばらく待ってから再試行してください"))
+      )
+  }
 
   private def sessionCookie(id: String): Cookie =
     Cookie(
@@ -47,7 +59,7 @@ class AuthController @Inject()(
     }
   }
 
-  def login(): Action[JsValue] = Action.async(parse.json) { request =>
+  def login(): Action[JsValue] = (Action(parse.json) andThen loginRateLimitFilter).async { request =>
     val emailOpt    = (request.body \ "email").asOpt[String]
     val passwordOpt = (request.body \ "password").asOpt[String]
 
@@ -59,8 +71,6 @@ class AuthController @Inject()(
               .withCookies(sessionCookie(sessionId))
           case Left(InvalidCredentials) =>
             Unauthorized(Json.obj("error" -> "メールアドレスまたはパスワードが正しくありません"))
-          case Left(AccountLocked) =>
-            TooManyRequests(Json.obj("error" -> "ログイン試行回数超過。5分後に再試行してください"))
           case Left(_) =>
             InternalServerError(Json.obj("error" -> "予期しないエラー"))
         }

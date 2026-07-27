@@ -362,3 +362,31 @@ cd ~/My_Kitchen/frontend && npm run dev
 | CSRFFilter を有効のまま、API にもトークン方式を導入 | フロントがトークン取得 → ヘッダー送信を実装。二重防御になるが SPA 構成では実装コストが高い | 不採用 |
 
 **修正:** `application.conf` の `play.filters.enabled` から `play.filters.csrf.CSRFFilter` を除外し、CORS / SecurityHeaders / AllowedHosts フィルタのみ有効化する。CSRF 対策は Cookie の `SameSite=Strict` 属性に一本化する。
+
+## ログインAPIのレート制限 (2026-07-27)
+
+### 方針決定の経緯
+
+CLAUDE.md のセキュリティ要件「ログインAPIへのレート制限（ブルートフォース対策）」を満たすため、`AuthService` に自前実装していた `AccountLocked` / `MaxFailedAttempts`（失敗回数5回でロックする想定のフィールド・エラー型）を検討したが、これらは実際にはどこからも呼ばれない到達不能コードだった（`login` メソッド内で一度も参照されていない）。CLAUDE.md の方針「未使用のimport・変数は残さない」に反するため、自前実装を維持するのではなく、ライブラリ `play-guard`（`com.digitaltangible %% play-guard % 3.0.0`, Play 3.0 / Scala 2.13 対応）に一本化することにした。
+
+**検討した2つの論点:**
+
+1. **レート制限のキー: IPアドレス単位 vs メールアドレス単位**
+   → **IPアドレス単位を採用**。CLAUDE.mdの要件は「同一送信元からの大量試行を止める」ことが主目的であり、IP単位が直接効く。メールアドレス単位だと「他人のメールアドレスを使って大量ログイン試行し、正規ユーザーを締め出す」DoS的悪用が可能になってしまう弱点があるため避けた。
+
+2. **既存の `AccountLocked` / `MaxFailedAttempts` の扱い**
+   → **削除して play-guard に一本化**。中途半端に両方残すと、実際には何もしていない `MaxFailedAttempts` の存在が将来読んだときに誤解を招く。レート制限（インフラ的関心事）を `AuthController` 側の Action 合成に持たせることで、`AuthService`（認証ドメインロジック）との責務分離もできる。
+
+### 実装
+
+`play-guard` 3.0.0 の実際のクラス構成は README等の二次情報と食い違いがあったため、`coursier fetch --sources` で取得した実際のソース（`RateLimitActionFilter.scala`）を読んで正確なAPIを確認した:
+
+- `com.digitaltangible.ratelimit.RateLimiter(size: Long, rate: Double, name: String, clock: Clock)` … トークンバケット本体。`consumeAndCheck(key)` でトークン消費と可否判定を同時に行う。
+- `com.digitaltangible.playguard.IpRateLimitFilter[R[_] <: Request[_]](rateLimiter, ipWhitelist = Set.empty)` … `RateLimitActionFilter` を継承した抽象クラスで、`keyFromRequest` に `request.remoteAddress` を使うよう実装済み。利用側は `rejectResponse[A](implicit request: R[A]): Future[Result]` だけをオーバーライドすればよい。
+- Action合成: `(Action(parse.json) andThen ipRateLimitFilter).async { ... }` のように `ActionFilter` として `andThen` で通常の `Action` に連結する。
+
+`AuthController.scala` に `loginRateLimiter = new RateLimiter(5, 1f / 10, "login-by-ip")`（トークン5個まで即時許可、以降10秒に1個回復）と `loginRateLimitFilter` を定義し、`login()` アクションにのみ適用した（`register()` には適用しない。ブルートフォース対策は「ログインAPI」が対象であり、登録APIは連続試行によるパスワード推測の対象にならないため）。
+
+**学び:** ライブラリのAPIをWeb検索やAIによる要約経由で調べると、バージョン差異やハルシネーションで実際と異なる情報が返ってくることがある（今回も「クラス継承」「object経由のapply」など複数の矛盾した回答を得た）。決定的なのは `coursier fetch --sources` で実際のソースを取得して読むこと、そして最終的に `sbt compile` を通して確認することだった。
+
+**削除したもの:** `AuthService.scala` の `AccountLocked` ケースオブジェクトと `MaxFailedAttempts` 定数、`AuthController.scala` の `AccountLocked` 分岐、および到達不能な `AuthService.isAccountLocked`（存在しないメソッド）をテストしていた `AuthServiceSpec.scala`（コンパイルが通っていなかった壊れたテスト）。

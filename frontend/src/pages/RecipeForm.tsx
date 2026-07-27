@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createRecipe, updateRecipe, fetchRecipe, type RecipeInput } from '../api/recipes'
 
-const CATEGORIES = ['朝食', '昼食', '夕食', 'おやつ', 'その他']
+const CATEGORIES = ['朝食', '昼食', '夕食', 'おやつ', '和食', '中華', '洋食', 'その他']
 
 export default function RecipeForm() {
   const { id } = useParams<{ id?: string }>()
@@ -61,83 +61,84 @@ export default function RecipeForm() {
     }
   }
 
-  if (loading) return <div style={styles.center}>読み込み中...</div>
+  if (loading) return <div className="page center-state">読み込み中...</div>
 
   return (
-    <div style={styles.container}>
-      <h1>{isEdit ? '✏️ レシピを編集' : '✨ 新しいレシピ'}</h1>
+    <div className="page page--narrow">
+      <button className="breadcrumb-back" onClick={() => navigate(-1)}>← 戻る</button>
 
-      {error && <div style={styles.errorBox}>{error}</div>}
+      <h1 style={{ marginBottom: 20 }}>{isEdit ? '✏️ レシピを編集' : '✨ 新しいレシピ'}</h1>
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label style={styles.label}>
-          タイトル *
-          <input
-            style={styles.input}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="例: 肉じゃが"
-            maxLength={255}
-          />
-        </label>
+      <div className="card card--pad">
+        {error && <div className="form-error" style={{ marginBottom: 16 }}>{error}</div>}
 
-        <label style={styles.label}>
-          説明
-          <textarea
-            style={{ ...styles.input, height: 80, resize: 'vertical' }}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="作り方のメモなど（任意）"
-          />
-        </label>
-
-        <div style={styles.row}>
-          <label style={{ ...styles.label, flex: 1 }}>
-            カテゴリ
-            <select style={styles.input} value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
-
-          <label style={{ ...styles.label, flex: 1 }}>
-            人数
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="recipe-title">タイトル *</label>
             <input
-              style={styles.input} type="number" min={1} max={20}
-              value={servings} onChange={(e) => setServings(Number(e.target.value))}
+              id="recipe-title"
+              className="input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例: 肉じゃが"
+              maxLength={255}
             />
-          </label>
+          </div>
 
-          <label style={{ ...styles.label, flex: 1 }}>
-            調理時間 (分)
-            <input
-              style={styles.input} type="number" min={1} max={999}
-              value={cookTime} onChange={(e) => setCookTime(Number(e.target.value))}
+          <div className="field">
+            <label htmlFor="recipe-description">説明</label>
+            <textarea
+              id="recipe-description"
+              className="textarea"
+              style={{ height: 90 }}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="作り方のメモなど（任意）"
             />
-          </label>
-        </div>
+          </div>
 
-        <div style={styles.actions}>
-          <button type="button" style={styles.cancelBtn} onClick={() => navigate(-1)}>
-            キャンセル
-          </button>
-          <button type="submit" style={styles.submitBtn} disabled={submitting}>
-            {submitting ? '保存中...' : isEdit ? '更新する' : '作成する'}
-          </button>
-        </div>
-      </form>
+          <div className="form-row">
+            <div className="field">
+              <label htmlFor="recipe-category">カテゴリ</label>
+              <select
+                id="recipe-category"
+                className="select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="recipe-servings">人数</label>
+              <input
+                id="recipe-servings"
+                className="input" type="number" min={1} max={20}
+                value={servings} onChange={(e) => setServings(Number(e.target.value))}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="recipe-cooktime">調理時間 (分)</label>
+              <input
+                id="recipe-cooktime"
+                className="input" type="number" min={1} max={999}
+                value={cookTime} onChange={(e) => setCookTime(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="button" className="btn btn--outline" onClick={() => navigate(-1)}>
+              キャンセル
+            </button>
+            <button type="submit" className="btn btn--primary" disabled={submitting}>
+              {submitting ? '保存中...' : isEdit ? '更新する' : '作成する'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: { maxWidth: 640, margin: '40px auto', padding: '0 16px' },
-  center:    { textAlign: 'center', marginTop: 80 },
-  errorBox:  { background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', marginBottom: 16, color: '#dc2626' },
-  form:      { display: 'flex', flexDirection: 'column', gap: 16 },
-  label:     { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, fontWeight: 600 },
-  input:     { padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, fontWeight: 400 },
-  row:       { display: 'flex', gap: 12 },
-  actions:   { display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 },
-  cancelBtn: { padding: '8px 20px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' },
-  submitBtn: { padding: '8px 24px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' },
 }
