@@ -390,3 +390,28 @@ CLAUDE.md のセキュリティ要件「ログインAPIへのレート制限（�
 **学び:** ライブラリのAPIをWeb検索やAIによる要約経由で調べると、バージョン差異やハルシネーションで実際と異なる情報が返ってくることがある（今回も「クラス継承」「object経由のapply」など複数の矛盾した回答を得た）。決定的なのは `coursier fetch --sources` で実際のソースを取得して読むこと、そして最終的に `sbt compile` を通して確認することだった。
 
 **削除したもの:** `AuthService.scala` の `AccountLocked` ケースオブジェクトと `MaxFailedAttempts` 定数、`AuthController.scala` の `AccountLocked` 分岐、および到達不能な `AuthService.isAccountLocked`（存在しないメソッド）をテストしていた `AuthServiceSpec.scala`（コンパイルが通っていなかった壊れたテスト）。
+
+## バックエンドのテストコード追加による動作確認 (2026-07-27)
+
+### 方針決定の経緯
+
+Phase4/5共通の残タスクだった「動作確認」を、手動でのブラウザ操作ではなくテストコードで行うことにした（ユーザー指示）。あわせて「フォルダ構成をベストプラクティスにする」という要望を受け、`backend/test/` 配下を `backend/app/` と同じ `controllers/` `services/` のレイヤー構成に揃えた（Play/sbtの標準的な慣習）。`repositories/` 層は実DBが必要な結合テストになるため、テスト用DB環境が未整備な現状ではスコープ外とし、Phase5で確立した「Service層はリポジトリをモックしてユニットテストする」方針を踏襲した。
+
+### UserRepository / SessionRepository のトレイト化
+
+`AuthServiceSpec` を書く際、Phase5の `RecipeRepository` と同じ理由（具象クラスのコンストラクタがDB接続を即座に確立するため ScalaMock で `mock[T]` すると NPE になる）で `UserRepository` / `SessionRepository` も動かせなかった。同じ「トレイト + `@ImplementedBy(classOf[実装クラス])`」パターンでリファクタリングし、`UserRepositoryImpl` / `SessionRepositoryImpl` に分離した。これでリポジトリ全体（Recipe/Ingredient/User/Session）のDI設計が統一された。
+
+### 追加したテスト
+
+- `test/services/AuthServiceSpec.scala`: `register`（パスワードポリシー違反・メール重複・正常系でbcryptハッシュとセッション発行を検証）/ `login`（未登録・パスワード不一致・正常系）/ `logout` / `validateSession` の10ケース。
+- `test/controllers/AuthControllerSpec.scala`: `register` / `login` / `logout` / `me` の各エンドポイントを `AuthService` をモックしてコントローラー単体でテスト（9ケース）。
+- `test/controllers/RecipeControllerSpec.scala`: Phase5の `RecipeController` の `list`/`create`/`show`/`update`/`delete` をモックでテスト（10ケース）。
+
+### コントローラーテストで踏んだ2つのハマりどころ
+
+1. **Play 3.0 は内部で Akka ではなく Pekko を使っている。** `withJsonBody` を使うテストで `A Materializer is required` エラーが出た際、最初 `akka.actor.ActorSystem` / `akka.stream.Materializer` をimportしたが `not found: object akka` になった。Play/Playframework 3.0 系はLightbendのライセンス変更を受けて Apache Pekko（Akkaのフォーク）に移行しているため、`org.apache.pekko.actor.ActorSystem` / `org.apache.pekko.stream.Materializer` を使う必要がある。
+2. **`FakeRequest#withJsonBody` は Content-Type ヘッダーを付与しない。** `controller.someAction().apply(fakeRequest)` のように `Action[JsValue]` を直接 `apply` する形でテストを書いていたところ、`withJsonBody` を使ったリクエストが `415 Unsupported Media Type` になった。原因を `play-test` の実ソース（`Fakes.scala`）で確認したところ、`Action[A]` は `apply(request: Request[A]): Future[Result]`（ボディパーサーを経由せず、既にパース済みのボディをそのまま使う）というオーバーロードを持っているが、`withJsonBody` は `FakeRequest[AnyContentAsJson]` を返すため型が一致せず、`EssentialAction.apply(rh: RequestHeader): Accumulator[...]` の方に解決されてしまい、実際に `parse.json` ボディパーサーが（Content-Typeヘッダーのチェック込みで）動いてしまっていた。解決策は `withJsonBody` の代わりに `FakeRequest(...).withBody(jsValue)` を使うこと。これは `FakeRequest[JsValue]` を返すため、アクションの `apply(request: Request[JsValue])` オーバーロードに正しく解決され、ボディパーサーを経由せず単体テストとして意図通り動く。
+
+### 確認結果
+
+`sbt test` で全44ケース中41ケースが成功。残り3件は Phase1 から存在する Play デフォルトの `HomeControllerSpec`（テスト実行時にDBのSCRAM認証パスワードが渡っておらず接続できない、という今回の変更と無関係な既存の環境要因）で、今回のテスト追加やリファクタリングとは無関係。

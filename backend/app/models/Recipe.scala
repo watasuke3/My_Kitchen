@@ -9,7 +9,7 @@ case class Recipe(
   description:     Option[String],
   category:        String,
   servings:        Int,
-  cookTimeMinutes: Int,
+  cookTimeMinutes: Option[Int],
   createdAt:       OffsetDateTime,
   updatedAt:       OffsetDateTime
 )

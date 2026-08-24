@@ -1,5 +1,18 @@
 const BASE = 'http://localhost:9000/api/v1'
 
+export interface Ingredient {
+  id: number
+  name: string
+  amount: number | null
+  unit: string | null
+}
+
+export interface IngredientInput {
+  name: string
+  amount?: number
+  unit?: string
+}
+
 export interface Recipe {
   id: number
   userId: number
@@ -7,9 +20,10 @@ export interface Recipe {
   description: string | null
   category: string
   servings: number
-  cookTimeMinutes: number
+  cookTimeMinutes: number | null
   createdAt: string
   updatedAt: string
+  ingredients: Ingredient[]
 }
 
 export interface RecipeInput {
@@ -17,7 +31,8 @@ export interface RecipeInput {
   description?: string
   category: string
   servings: number
-  cookTimeMinutes: number
+  cookTimeMinutes?: number
+  ingredients: IngredientInput[]
 }
 
 export async function fetchRecipes(): Promise<Recipe[]> {

@@ -1,12 +1,11 @@
 package controllers
 
-import models.Recipe
+import models.{Ingredient, IngredientInput, Recipe}
 import play.api.libs.json._
 import play.api.mvc._
-import services.{AuthService, RecipeForbidden, RecipeNotFound, RecipeService}
+import services.{AuthService, RecipeForbidden, RecipeNotFound, RecipeService, RecipeWithIngredients}
 
 import javax.inject.{Inject, Singleton}
-import java.time.OffsetDateTime
 import scala.concurrent.{ExecutionContext, Future}
 
 @Singleton
@@ -17,6 +16,8 @@ class RecipeController @Inject()(
 )(implicit ec: ExecutionContext) extends AbstractController(cc) {
 
   private val SessionCookieName = "SESSION_ID"
+
+  private implicit val ingredientInputReads: Reads[IngredientInput] = Json.reads[IngredientInput]
 
   // 認証ヘルパー: セッション検証後に userId を渡す
   private def withAuth[A](request: Request[A])(f: Long => Future[Result]): Future[Result] =
@@ -29,18 +30,29 @@ class RecipeController @Inject()(
         }
     }
 
-  // Recipe → JSON 変換
-  private def toJson(r: Recipe): JsObject = Json.obj(
-    "id"              -> r.id,
-    "userId"          -> r.userId,
-    "title"           -> r.title,
-    "description"     -> r.description,
-    "category"        -> r.category,
-    "servings"        -> r.servings,
-    "cookTimeMinutes" -> r.cookTimeMinutes,
-    "createdAt"       -> r.createdAt.toString,
-    "updatedAt"       -> r.updatedAt.toString
+  private def ingredientJson(i: Ingredient): JsObject = Json.obj(
+    "id"     -> i.id,
+    "name"   -> i.name,
+    "amount" -> i.amount,
+    "unit"   -> i.unit
   )
+
+  // RecipeWithIngredients → JSON 変換
+  private def toJson(rw: RecipeWithIngredients): JsObject = {
+    val r = rw.recipe
+    Json.obj(
+      "id"              -> r.id,
+      "userId"          -> r.userId,
+      "title"           -> r.title,
+      "description"     -> r.description,
+      "category"        -> r.category,
+      "servings"        -> r.servings,
+      "cookTimeMinutes" -> r.cookTimeMinutes,
+      "createdAt"       -> r.createdAt.toString,
+      "updatedAt"       -> r.updatedAt.toString,
+      "ingredients"     -> rw.ingredients.map(ingredientJson)
+    )
+  }
 
   def list(): Action[AnyContent] = Action.async { request =>
     withAuth(request) { userId =>
@@ -54,14 +66,15 @@ class RecipeController @Inject()(
       val description = (request.body \ "description").asOpt[String].map(_.trim).filter(_.nonEmpty)
       val category    = (request.body \ "category").asOpt[String].getOrElse("その他")
       val servings    = (request.body \ "servings").asOpt[Int].getOrElse(2)
-      val cookTime    = (request.body \ "cookTimeMinutes").asOpt[Int].getOrElse(30)
+      val cookTime    = (request.body \ "cookTimeMinutes").asOpt[Int]
+      val ingredients = (request.body \ "ingredients").asOpt[Seq[IngredientInput]].getOrElse(Seq.empty)
 
       titleOpt match {
         case None =>
           Future.successful(BadRequest(Json.obj("error" -> "title は必須です")))
         case Some(title) =>
-          recipeService.create(userId, title, description, category, servings, cookTime)
-            .map(r => Created(toJson(r)))
+          recipeService.create(userId, title, description, category, servings, cookTime, ingredients)
+            .map(rw => Created(toJson(rw)))
       }
     }
   }
@@ -69,8 +82,8 @@ class RecipeController @Inject()(
   def show(id: Long): Action[AnyContent] = Action.async { request =>
     withAuth(request) { userId =>
       recipeService.get(id, userId).map {
-        case Right(r)            => Ok(toJson(r))
-        case Left(RecipeNotFound) => NotFound(Json.obj("error" -> "レシピが見つかりません"))
+        case Right(rw)             => Ok(toJson(rw))
+        case Left(RecipeNotFound)  => NotFound(Json.obj("error" -> "レシピが見つかりません"))
         case Left(RecipeForbidden) => Forbidden(Json.obj("error" -> "アクセス権限がありません"))
       }
     }
@@ -82,14 +95,15 @@ class RecipeController @Inject()(
       val description = (request.body \ "description").asOpt[String].map(_.trim).filter(_.nonEmpty)
       val category    = (request.body \ "category").asOpt[String].getOrElse("その他")
       val servings    = (request.body \ "servings").asOpt[Int].getOrElse(2)
-      val cookTime    = (request.body \ "cookTimeMinutes").asOpt[Int].getOrElse(30)
+      val cookTime    = (request.body \ "cookTimeMinutes").asOpt[Int]
+      val ingredients = (request.body \ "ingredients").asOpt[Seq[IngredientInput]].getOrElse(Seq.empty)
 
       titleOpt match {
         case None =>
           Future.successful(BadRequest(Json.obj("error" -> "title は必須です")))
         case Some(title) =>
-          recipeService.update(id, userId, title, description, category, servings, cookTime).map {
-            case Right(r)              => Ok(toJson(r))
+          recipeService.update(id, userId, title, description, category, servings, cookTime, ingredients).map {
+            case Right(rw)             => Ok(toJson(rw))
             case Left(RecipeNotFound)  => NotFound(Json.obj("error" -> "レシピが見つかりません"))
             case Left(RecipeForbidden) => Forbidden(Json.obj("error" -> "アクセス権限がありません"))
           }

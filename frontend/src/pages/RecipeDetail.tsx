@@ -50,13 +50,30 @@ export default function RecipeDetail() {
           <span className={`badge ${CATEGORY_BADGE_CLASS[recipe.category] ?? 'badge--other'}`}>
             {recipe.category}
           </span>
-          <span className="meta">⏱ {recipe.cookTimeMinutes}分 ・ 👤 {recipe.servings}人前</span>
+          <span className="meta">
+            {recipe.cookTimeMinutes !== null ? `⏱ ${recipe.cookTimeMinutes}分 ・ ` : ''}👤 {recipe.servings}人前
+          </span>
         </div>
 
         <h1 className="detail-title">{recipe.title}</h1>
 
         {recipe.description && (
           <p className="detail-description">{recipe.description}</p>
+        )}
+
+        {recipe.ingredients.length > 0 && (
+          <div className="detail-ingredients">
+            <h2>🧂 具材</h2>
+            <ul>
+              {recipe.ingredients.map((i) => (
+                <li key={i.id}>
+                  {i.name}
+                  {(i.amount !== null || i.unit !== null) &&
+                    ` ${i.amount ?? ''}${i.unit ?? ''}`}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <p className="timestamp">

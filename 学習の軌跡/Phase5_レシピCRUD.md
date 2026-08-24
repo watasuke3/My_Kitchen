@@ -286,8 +286,44 @@ curl -s -c /tmp/c.txt -X POST http://localhost:9000/api/v1/auth/login \
 # レシピ作成
 curl -s -b /tmp/c.txt -X POST http://localhost:9000/api/v1/recipes \
   -H "Content-Type: application/json" \
-  -d '{"title":"肉じゃが","description":"定番の家庭料理","category":"夕食","servings":4,"cookTimeMinutes":40}' | jq
+  -d '{"title":"肉じゃが","description":"定番の家庭料理","category":"夕食","servings":4,"cookTimeMinutes":40,"ingredients":[{"name":"じゃがいも","amount":200,"unit":"g"}]}' | jq
 
 # 一覧取得
 curl -s -b /tmp/c.txt http://localhost:9000/api/v1/recipes | jq
+```
+
+---
+
+## 具材登録・調理時間のNull許容化・バックエンドテスト追加 (2026-07-27)
+
+### 方針決定の経緯
+
+CLAUDE.md のUI/UX改善要望のうち、バックエンドのデータモデル変更が必要で未着手だった以下2点に着手した。
+
+1. レシピ追加画面で具材を登録できるようにする
+2. レシピの調理時間はNullを許容し、あとからでも変更可能にする
+
+**具材のデータ構造の検討:** Phase7（栄養計算）で「レシピ内の数値化された具材・調味料を基にした栄養価のリアルタイム算出」が要件にあるため、将来の再設計を避けるべく、最初から構造化データ（`name` / `amount`(数値) / `unit`(文字列)）で持つことをユーザーと相談の上決定した。「じゃがいも 200g」のような1行テキストにすると、Phase7で自然言語解析が必要になり手戻りが大きくなるため。
+
+### 実装内容
+
+- **DBマイグレーション** (`evolutions/default/3.sql`):
+  - `recipes.cook_time_minutes` を `NOT NULL` → NULL許容 に変更（`DROP NOT NULL` / `DROP DEFAULT`）。
+  - `ingredients` テーブルを新設（`recipe_id` は `ON DELETE CASCADE` でレシピ削除時に具材も自動削除）。
+  - ついでに、play-guard導入（別セクション参照）で完全に不要になった `login_attempts` テーブルも削除した。使われなくなったテーブルを残すと「このテーブルは何のためにあるのか」を将来読んだときに誤解を招くため。
+- **モデル**: `models/Ingredient.scala` に `Ingredient`（DB取得結果）と `IngredientInput`（作成・更新時にクライアントから受け取る入力、id・recipeIdを持たない）を分離して定義。`Recipe.cookTimeMinutes` を `Int` → `Option[Int]` に変更。
+- **リポジトリ層のトレイト化**: `RecipeRepository` / `IngredientRepository` を「トレイト + `@ImplementedBy` で実装クラスを指定」という形に分離した（`RecipeRepositoryImpl` / `IngredientRepositoryImpl`）。理由は後述のテスト追加参照。
+- **`IngredientRepository.replaceForRecipe`**: レシピの具材を「全削除してから入力順に再挿入」という単純な置き換え戦略にした。差分更新（既存行のIDを見て更新/追加/削除を判定）よりロジックが単純で、具材の並び順（`sort_order`）も入力順そのままで保存できる。件数が多くない個人利用アプリなので、削除→再挿入のオーバーヘッドは問題にならないと判断した。Slickの `transactionally` で削除と挿入をアトミックにしている。
+- **`RecipeService`**: `Recipe` 単体ではなく `RecipeWithIngredients`（レシピ本体と具材のSeqを持つケースクラス）を返すように変更。`list` はレシピ一覧と具材一覧をそれぞれ1回のクエリで取得し、アプリケーション側で `groupBy(_.recipeId)` して組み立てることで、レシピN件に対してN+1回クエリが発行される問題を避けている。
+- **`RecipeController`**: リクエストJSONの `ingredients` 配列を `Reads[IngredientInput]`（`Json.reads` マクロ）でパースし、`cookTimeMinutes` は `Option[Int]` としてそのまま送受信するように変更（未入力時は省略可）。
+
+### バックエンドテスト追加時に発覚した設計上の学び
+
+`AuthServiceSpec` が壊れていた反省を踏まえ、`RecipeService` に対してScalaMock（`org.scalamock %% scalamock`）を使ったユニットテスト（`RecipeServiceSpec`）を追加しようとしたところ、**具象クラスをそのまま `mock[T]` すると `NullPointerException` になった**。
+
+原因: `RecipeRepository`（当時は具象クラス）のコンストラクタが `dbConfigProvider.get[...]` を即座に呼び出しており、ScalaMockが `mock[T]` でクラスをモックする際にも実際のコンストラクタが動くため、テスト用に渡した `null` の `DatabaseConfigProvider` でNPEになった。
+
+**学び:** DB接続などの副作用をコンストラクタで持つ具象クラスは、そのままではモックの対象にできない。Play/Guiceでは「トレイトを `@Inject` される側の型にし、`@ImplementedBy(classOf[実装クラス])` で実装をひも付ける」パターンにすることで、①ScalaMockで純粋なインターフェースとしてモックできる、②Guiceの自動バインディングも維持できる、の両方を満たせる。これは最初からトレイトで設計しておくべきだった箇所であり、次にリポジトリを追加するとき（Phase6のmeal_plans/shopping_listsなど）は最初からこのパターンを踏襲する。
+
+`RecipeServiceSpec` では `list` / `get`（正常系・`RecipeNotFound`・`RecipeForbidden`）/ `create` / `update`（正常系・`RecipeNotFound`・`RecipeForbidden`）/ `delete`（正常系・`RecipeForbidden`）の10ケースをモックで検証し、全てパスすることを確認した。
 ```

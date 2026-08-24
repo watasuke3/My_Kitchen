@@ -1,5 +1,6 @@
 package repositories
 
+import com.google.inject.ImplementedBy
 import play.api.db.slick.DatabaseConfigProvider
 import slick.jdbc.PostgresProfile.api._
 
@@ -8,8 +9,18 @@ import java.time.OffsetDateTime
 import java.util.UUID
 import scala.concurrent.{ExecutionContext, Future}
 
+// トレイトに切り出すことで AuthService のテストで ScalaMock による
+// モック差し替えができるようにする（具象クラスはDB接続を持ちコンストラクタで即座に初期化されるためモック不可）
+@ImplementedBy(classOf[SessionRepositoryImpl])
+trait SessionRepository {
+  def create(userId: Long): Future[String]
+  def findValidSession(sessionId: String): Future[Option[Long]]
+  def delete(sessionId: String): Future[Int]
+}
+
 @Singleton
-class SessionRepository @Inject()(dbConfigProvider: DatabaseConfigProvider)(implicit ec: ExecutionContext) {
+class SessionRepositoryImpl @Inject()(dbConfigProvider: DatabaseConfigProvider)(implicit ec: ExecutionContext)
+    extends SessionRepository {
 
   private val db = dbConfigProvider.get[slick.jdbc.JdbcProfile].db
 

@@ -93,7 +93,9 @@ export default function RecipeList() {
               </div>
               <h2>{r.title}</h2>
               {r.description && <p className="desc">{r.description}</p>}
-              <span className="meta">⏱ {r.cookTimeMinutes}分 ・ 👤 {r.servings}人前</span>
+              <span className="meta">
+                {r.cookTimeMinutes !== null ? `⏱ ${r.cookTimeMinutes}分 ・ ` : ''}👤 {r.servings}人前
+              </span>
             </div>
           ))}
         </div>

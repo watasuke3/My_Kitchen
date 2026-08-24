@@ -9,6 +9,7 @@ scalaVersion := "2.13.18"
 
 libraryDependencies += guice
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "7.0.2" % Test
+libraryDependencies += "org.scalamock"           %% "scalamock"           % "6.0.0" % Test
 
 // Database
 libraryDependencies += "org.playframework" %% "play-slick"            % "6.1.1"

@@ -4,6 +4,14 @@ import { createRecipe, updateRecipe, fetchRecipe, type RecipeInput } from '../ap
 
 const CATEGORIES = ['朝食', '昼食', '夕食', 'おやつ', '和食', '中華', '洋食', 'その他']
 
+interface IngredientRow {
+  name: string
+  amount: string
+  unit: string
+}
+
+const emptyIngredientRow: IngredientRow = { name: '', amount: '', unit: '' }
+
 export default function RecipeForm() {
   const { id } = useParams<{ id?: string }>()
   const isEdit  = id !== undefined
@@ -13,7 +21,8 @@ export default function RecipeForm() {
   const [description, setDescription]   = useState('')
   const [category, setCategory]         = useState('その他')
   const [servings, setServings]         = useState(2)
-  const [cookTime, setCookTime]         = useState(30)
+  const [cookTime, setCookTime]         = useState('')
+  const [ingredients, setIngredients]   = useState<IngredientRow[]>([{ ...emptyIngredientRow }])
   const [loading, setLoading]           = useState(isEdit)
   const [submitting, setSubmitting]     = useState(false)
   const [error, setError]               = useState<string | null>(null)
@@ -26,11 +35,32 @@ export default function RecipeForm() {
         setDescription(r.description ?? '')
         setCategory(r.category)
         setServings(r.servings)
-        setCookTime(r.cookTimeMinutes)
+        setCookTime(r.cookTimeMinutes !== null ? String(r.cookTimeMinutes) : '')
+        setIngredients(
+          r.ingredients.length > 0
+            ? r.ingredients.map((i) => ({
+                name: i.name,
+                amount: i.amount !== null ? String(i.amount) : '',
+                unit: i.unit ?? '',
+              }))
+            : [{ ...emptyIngredientRow }]
+        )
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [id, isEdit])
+
+  function updateIngredient(index: number, field: keyof IngredientRow, value: string) {
+    setIngredients((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
+  }
+
+  function addIngredientRow() {
+    setIngredients((prev) => [...prev, { ...emptyIngredientRow }])
+  }
+
+  function removeIngredientRow(index: number) {
+    setIngredients((prev) => prev.filter((_, i) => i !== index))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -43,7 +73,14 @@ export default function RecipeForm() {
       description: description.trim() || undefined,
       category,
       servings,
-      cookTimeMinutes: cookTime,
+      cookTimeMinutes: cookTime.trim() === '' ? undefined : Number(cookTime),
+      ingredients: ingredients
+        .filter((row) => row.name.trim() !== '')
+        .map((row) => ({
+          name: row.name.trim(),
+          amount: row.amount.trim() === '' ? undefined : Number(row.amount),
+          unit: row.unit.trim() || undefined,
+        })),
     }
 
     try {
@@ -120,13 +157,59 @@ export default function RecipeForm() {
             </div>
 
             <div className="field">
-              <label htmlFor="recipe-cooktime">調理時間 (分)</label>
+              <label htmlFor="recipe-cooktime">調理時間 (分・任意)</label>
               <input
                 id="recipe-cooktime"
                 className="input" type="number" min={1} max={999}
-                value={cookTime} onChange={(e) => setCookTime(Number(e.target.value))}
+                value={cookTime}
+                onChange={(e) => setCookTime(e.target.value)}
+                placeholder="未定なら空欄でOK"
               />
             </div>
+          </div>
+
+          <div className="field">
+            <label>具材（任意）</label>
+            {ingredients.map((row, index) => (
+              <div className="form-row" key={index} style={{ marginBottom: 8 }}>
+                <input
+                  className="input"
+                  style={{ flex: 2 }}
+                  value={row.name}
+                  onChange={(e) => updateIngredient(index, 'name', e.target.value)}
+                  placeholder="例: じゃがいも"
+                  aria-label="具材名"
+                />
+                <input
+                  className="input"
+                  style={{ flex: 1 }}
+                  value={row.amount}
+                  onChange={(e) => updateIngredient(index, 'amount', e.target.value)}
+                  placeholder="量 例: 200"
+                  type="number"
+                  aria-label="分量"
+                />
+                <input
+                  className="input"
+                  style={{ flex: 1 }}
+                  value={row.unit}
+                  onChange={(e) => updateIngredient(index, 'unit', e.target.value)}
+                  placeholder="単位 例: g"
+                  aria-label="単位"
+                />
+                <button
+                  type="button"
+                  className="btn btn--icon btn--danger"
+                  onClick={() => removeIngredientRow(index)}
+                  aria-label="この具材を削除"
+                >
+                  🗑
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn btn--outline" onClick={addIngredientRow}>
+              + 具材を追加
+            </button>
           </div>
 
           <div className="form-actions">

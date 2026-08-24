@@ -1,5 +1,6 @@
 package repositories
 
+import com.google.inject.ImplementedBy
 import models.User
 import play.api.db.slick.DatabaseConfigProvider
 import slick.jdbc.PostgresProfile.api._
@@ -8,8 +9,17 @@ import javax.inject.{Inject, Singleton}
 import java.time.OffsetDateTime
 import scala.concurrent.{ExecutionContext, Future}
 
+// トレイトに切り出すことで AuthService のテストで ScalaMock による
+// モック差し替えができるようにする（具象クラスはDB接続を持ちコンストラクタで即座に初期化されるためモック不可）
+@ImplementedBy(classOf[UserRepositoryImpl])
+trait UserRepository {
+  def findByEmail(email: String): Future[Option[User]]
+  def create(email: String, hashedPassword: String): Future[User]
+}
+
 @Singleton
-class UserRepository @Inject()(dbConfigProvider: DatabaseConfigProvider)(implicit ec: ExecutionContext) {
+class UserRepositoryImpl @Inject()(dbConfigProvider: DatabaseConfigProvider)(implicit ec: ExecutionContext)
+    extends UserRepository {
 
   private val db = dbConfigProvider.get[slick.jdbc.JdbcProfile].db
 
