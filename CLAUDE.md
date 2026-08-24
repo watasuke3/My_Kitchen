@@ -56,7 +56,7 @@
 - [x] CORS 設定
 - [x] フロントエンドから fetch で連携確認
 
-### Phase 4: ユーザー登録・ログイン 🔶 実装済み・コミットが未完了
+### Phase 4: ユーザー登録・ログイン ✅ 完了
 
 - [x] バックエンドAPI実装（`AuthController.scala`, `User.scala`, `UserRepository.scala`, `SessionRepository.scala`, `AuthService.scala`）
 - [x] DBマイグレーション作成（`backend/conf/evolutions/`）
@@ -64,15 +64,15 @@
 - [x] 学習ログ作成（`学習の軌跡/Phase4_認証実装.md`）
 - [x] 動作確認・テスト（`AuthServiceSpec`・`AuthControllerSpec`を追加し、登録・ログイン・ログアウト・セッション検証をテストコードで確認。手動でのブラウザ確認は未実施）
 - [x] セキュリティ要件の充足確認（パスワードハッシュ化、セッション管理、パスワードポリシー、ログインAPIのレート制限をplay-guardで実装済み）
-- [ ] git コミット
+- [x] git コミット
 
-### Phase 5: レシピCRUD 🔶 実装済み・コミットが未完了
+### Phase 5: レシピCRUD ✅ 完了
 
 - [x] バックエンドAPI実装（`RecipeController.scala`, `Recipe.scala`, `RecipeRepository.scala`, `RecipeService.scala`）
 - [x] フロントエンド実装（`recipes.ts`, `RecipeList.tsx`, `RecipeForm.tsx`, `RecipeDetail.tsx`）
 - [x] 学習ログ作成（`学習の軌跡/Phase5_レシピCRUD.md`）
 - [x] 動作確認・テスト（`RecipeServiceSpec`に加え`RecipeControllerSpec`を追加し、作成・一覧・詳細・更新・削除をテストコードで確認。手動でのブラウザ確認は未実施）
-- [ ] git コミット
+- [x] git コミット
 
 ### UI/UX改善要望（随時追加・都度対応）
 
