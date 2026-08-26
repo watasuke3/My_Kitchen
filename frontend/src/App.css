@@ -601,3 +601,57 @@
 .breadcrumb-back:hover {
   color: var(--accent);
 }
+
+.meal-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(160px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.meal-calendar-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meal-calendar-cell {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 88px;
+}
+
+.meal-calendar-cell-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.meal-calendar-recipes {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.9rem;
+}
+
+.meal-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meal-calendar-picker {
+  border-top: 1px dashed var(--border-color, #eee);
+  padding-top: 6px;
+}
+
+.meal-calendar-picker ul {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  max-height: 140px;
+  overflow-y: auto;
+}

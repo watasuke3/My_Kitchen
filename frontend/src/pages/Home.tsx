@@ -46,6 +46,13 @@ export default function Home() {
           <p>新しいレシピを書き留める</p>
           <span className="tile-arrow">追加する →</span>
         </button>
+
+        <button className="nav-tile nav-tile--secondary" onClick={() => navigate('/meal-plans')}>
+          <span className="tile-icon">📅</span>
+          <h3>献立カレンダー</h3>
+          <p>1週間の献立を組み立てる</p>
+          <span className="tile-arrow">開く →</span>
+        </button>
       </div>
     </div>
   )

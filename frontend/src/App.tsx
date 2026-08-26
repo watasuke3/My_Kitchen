@@ -7,6 +7,7 @@ import Register from './pages/Register'
 import RecipeList from './pages/RecipeList'
 import RecipeForm from './pages/RecipeForm'
 import RecipeDetail from './pages/RecipeDetail'
+import MealPlanCalendar from './pages/MealPlanCalendar'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/recipes/new" element={<ProtectedRoute><RecipeForm /></ProtectedRoute>} />
           <Route path="/recipes/:id" element={<ProtectedRoute><RecipeDetail /></ProtectedRoute>} />
           <Route path="/recipes/:id/edit" element={<ProtectedRoute><RecipeForm /></ProtectedRoute>} />
+          <Route path="/meal-plans" element={<ProtectedRoute><MealPlanCalendar /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
