@@ -15,6 +15,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait RecipeRepository {
   def findAllByUser(userId: Long): Future[Seq[Recipe]]
   def findById(id: Long): Future[Option[Recipe]]
+  def findByIds(ids: Seq[Long]): Future[Seq[Recipe]]
 
   def create(
     userId: Long, title: String, description: Option[String],
@@ -69,6 +70,10 @@ class RecipeRepositoryImpl @Inject()(dbConfigProvider: DatabaseConfigProvider)(i
   def findById(id: Long): Future[Option[Recipe]] =
     db.run(recipes.filter(_.id === id).result.headOption)
       .map(_.map(toModel))
+
+  def findByIds(ids: Seq[Long]): Future[Seq[Recipe]] =
+    if (ids.isEmpty) Future.successful(Seq.empty)
+    else db.run(recipes.filter(_.id inSet ids).result).map(_.map(toModel))
 
   def create(
     userId: Long, title: String, description: Option[String],
