@@ -616,8 +616,8 @@
 }
 
 .meal-calendar-cell {
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #eee);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
   display: flex;
@@ -644,7 +644,7 @@
 }
 
 .meal-calendar-picker {
-  border-top: 1px dashed var(--border-color, #eee);
+  border-top: 1px dashed var(--border-strong);
   padding-top: 6px;
 }
 
