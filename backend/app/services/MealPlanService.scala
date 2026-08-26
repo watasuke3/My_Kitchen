@@ -47,15 +47,15 @@ class MealPlanService @Inject()(
     userId: Long, date: LocalDate, mealType: String, recipeIds: Seq[Long]
   ): Future[Either[MealPlanError, MealPlanWithRecipes]] =
     mealPlanRepo.findByUserDateAndType(userId, date, mealType).flatMap { existing =>
-      val mealPlanFuture = existing match {
-        case Some(mp) => Future.successful(mp)
-        case None     => mealPlanRepo.create(userId, date, mealType)
-      }
-      mealPlanFuture.flatMap { mealPlan =>
-        recipeRepo.findByIds(recipeIds).flatMap { recipes =>
-          if (recipes.size != recipeIds.size || recipes.exists(_.userId != userId)) {
-            Future.successful(Left(RecipeNotOwned))
-          } else {
+      recipeRepo.findByIds(recipeIds).flatMap { recipes =>
+        if (recipes.size != recipeIds.size || recipes.exists(_.userId != userId)) {
+          Future.successful(Left(RecipeNotOwned))
+        } else {
+          val mealPlanFuture = existing match {
+            case Some(mp) => Future.successful(mp)
+            case None     => mealPlanRepo.create(userId, date, mealType)
+          }
+          mealPlanFuture.flatMap { mealPlan =>
             mealPlanRecipeRepo.replaceForMealPlan(mealPlan.id, recipeIds)
               .map(_ => Right(MealPlanWithRecipes(mealPlan, recipes)))
           }

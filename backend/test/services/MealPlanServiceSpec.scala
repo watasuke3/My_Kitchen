@@ -38,9 +38,9 @@ class MealPlanServiceSpec extends PlaySpec with MockFactory {
       inSequence {
         (mealPlanRepo.findByUserDateAndType _).expects(mealPlan.userId, mealPlan.date, mealPlan.mealType)
           .returning(Future.successful(None))
+        (recipeRepo.findByIds _).expects(Seq(1L)).returning(Future.successful(Seq(recipe)))
         (mealPlanRepo.create _).expects(mealPlan.userId, mealPlan.date, mealPlan.mealType)
           .returning(Future.successful(mealPlan))
-        (recipeRepo.findByIds _).expects(Seq(1L)).returning(Future.successful(Seq(recipe)))
         (mealPlanRecipeRepo.replaceForMealPlan _).expects(mealPlan.id, Seq(1L)).returning(Future.successful(()))
       }
 
@@ -60,10 +60,11 @@ class MealPlanServiceSpec extends PlaySpec with MockFactory {
       inSequence {
         (mealPlanRepo.findByUserDateAndType _).expects(mealPlan.userId, mealPlan.date, mealPlan.mealType)
           .returning(Future.successful(None))
-        (mealPlanRepo.create _).expects(mealPlan.userId, mealPlan.date, mealPlan.mealType)
-          .returning(Future.successful(mealPlan))
         (recipeRepo.findByIds _).expects(Seq(1L)).returning(Future.successful(Seq(othersRecipe)))
       }
+      // create() must NOT be called: ownership must be validated before creating the slot,
+      // so a rejected assign leaves no orphaned meal_plan row behind.
+      (mealPlanRepo.create _).expects(*, *, *).never()
 
       await(service.assign(mealPlan.userId, mealPlan.date, mealPlan.mealType, Seq(1L))) mustBe Left(RecipeNotOwned)
     }
